@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DCA S&P 500 — El efecto dilución</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #111118;
+  --border: #1e1e2e;
+  --sp: #f97316;
+  --contrib: #38bdf8;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --accent: #a78bfa;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 60px;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.4;
+  z-index: 0;
+}
+.wrapper { position: relative; z-index: 1; width: 100%; max-width: 900px; }
+
+header { margin-bottom: 32px; border-left: 3px solid var(--sp); padding-left: 20px; }
+.eyebrow { font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.2em; color:var(--sp); text-transform:uppercase; margin-bottom:8px; }
+h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(36px,7vw,68px); line-height:.95; color:#fff; }
+h1 span { color:var(--sp); }
+.subtitle { margin-top:12px; font-size:14px; color:var(--muted); font-weight:300; max-width:520px; line-height:1.6; }
+
+.insights { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:12px; margin-bottom:24px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; position:relative; overflow:hidden; }
+.card::after { content:''; position:absolute; top:0; left:0; width:100%; height:2px; }
+.card.or::after{background:var(--sp);} .card.bl::after{background:var(--contrib);} .card.pu::after{background:var(--accent);}
+.cl { font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-family:'DM Mono',monospace; margin-bottom:5px; }
+.cv { font-family:'Bebas Neue',sans-serif; font-size:30px; }
+.card.or .cv{color:var(--sp);} .card.bl .cv{color:var(--contrib);} .card.pu .cv{color:var(--accent);}
+.cs { font-size:11px; color:var(--muted); margin-top:3px; line-height:1.4; }
+
+.controls { display:flex; gap:24px; flex-wrap:wrap; margin-bottom:24px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 22px; }
+.cg { display:flex; flex-direction:column; gap:6px; }
+.clabel { font-size:10px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); font-family:'DM Mono',monospace; }
+.cval { font-size:19px; font-family:'Bebas Neue',sans-serif; color:var(--text); }
+input[type=range] { -webkit-appearance:none; width:145px; height:3px; background:var(--border); border-radius:2px; outline:none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border-radius:50%; background:var(--sp); cursor:pointer; }
+
+.cw { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:22px 22px 14px; margin-bottom:18px; }
+.cw.pct { border-color:rgba(167,139,250,0.28); background:linear-gradient(160deg,rgba(167,139,250,0.05),var(--surface)); }
+.ct { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+.cd { font-size:13px; color:rgba(167,139,250,0.65); font-style:italic; font-weight:300; margin-bottom:12px; }
+canvas { display:block; width:100%; }
+.legend { display:flex; gap:18px; flex-wrap:wrap; margin-top:12px; }
+.li { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.ld { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+
+.ann { background:linear-gradient(135deg,rgba(167,139,250,0.07),rgba(249,115,22,0.05)); border:1px solid rgba(167,139,250,0.2); border-radius:10px; padding:16px 20px; font-size:14px; color:var(--muted); line-height:1.7; }
+.ann strong { color:var(--text); }
+.pill { display:inline-block; background:rgba(249,115,22,0.15); color:var(--sp); font-family:'DM Mono',monospace; font-size:11px; padding:1px 7px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="eyebrow">Dollar-Cost Averaging · S&amp;P 500</div>
+    <h1>EL EFECTO<br><span>DILUCIÓN</span></h1>
+    <p class="subtitle">Con el tiempo, las aportaciones anuales se vuelven insignificantes frente al valor acumulado. La cartera deja de depender de lo que aportas y empieza a moverse sola, como el índice.</p>
+  </header>
+
+  <div class="insights">
+    <div class="card or"><div class="cl">Valor total acumulado</div><div class="cv" id="vt">—</div><div class="cs" id="st"></div></div>
+    <div class="card bl"><div class="cl">Total aportado</div><div class="cv" id="vc">—</div><div class="cs">en efectivo</div></div>
+    <div class="card pu"><div class="cl">Aportación anual / cartera</div><div class="cv" id="vr">—</div><div class="cs" id="sr"></div></div>
+  </div>
+
+  <div class="controls">
+    <div class="cg"><span class="clabel">Aportación mensual</span><span class="cval"><span id="dm">500</span> €</span><input type="range" id="sm" min="100" max="2000" step="50" value="500"></div>
+    <div class="cg"><span class="clabel">Años de inversión</span><span class="cval"><span id="dy">30</span> años</span><input type="range" id="sy" min="10" max="40" step="1" value="30"></div>
+    <div class="cg"><span class="clabel">Rentabilidad anual</span><span class="cval"><span id="dr">10</span> %</span><input type="range" id="sr2" min="4" max="14" step="0.5" value="10"></div>
+  </div>
+
+  <div class="cw">
+    <div class="ct">Valor de la cartera vs. capital aportado</div>
+    <canvas id="c1" height="280"></canvas>
+    <div class="legend">
+      <div class="li"><div class="ld" style="background:var(--sp)"></div>Valor total cartera</div>
+      <div class="li"><div class="ld" style="background:var(--contrib)"></div>Capital aportado acumulado</div>
+    </div>
+  </div>
+
+  <div class="cw pct">
+    <div class="ct">Aportación anual como <span style="color:var(--accent)">% del valor total</span> de la cartera</div>
+    <div class="cd">Cuanto más cae esta curva, menos importa lo que aportas — el mercado toma el mando</div>
+    <canvas id="c2" height="240"></canvas>
+    <div class="legend">
+      <div class="li"><div class="ld" style="background:var(--accent)"></div>% aportación anual / cartera</div>
+      <div class="li"><div class="ld" style="background:rgba(167,139,250,0.25);border:1px dashed rgba(167,139,250,0.6)"></div>Umbral 5% · punto de dilución</div>
+    </div>
+  </div>
+
+  <div class="ann" id="ann">Mueve los controles para ver cómo evoluciona el efecto dilución.</div>
+</div>
+
+<script>
+let M=500, Y=30, R=0.10;
+
+function sim() {
+  const r=R/12; let p=0; const out=[];
+  for (let y=1;y<=Y;y++) {
+    for (let m=0;m<12;m++) p=(p+M)*(1+r);
+    out.push({y,p,contrib:M*12*y,annual:M*12,pct:(M*12)/p*100});
+  }
+  return out;
+}
+
+function fmt(n) {
+  if(n>=1e6) return (n/1e6).toFixed(2)+' M€';
+  if(n>=1e3) return (n/1e3).toFixed(1)+' k€';
+  return n.toFixed(0)+' €';
+}
+
+function prep(c,W,H) {
+  const d=devicePixelRatio||1;
+  c.width=W*d; c.height=H*d;
+  c.style.width=W+'px'; c.style.height=H+'px';
+  const g=c.getContext('2d'); g.scale(d,d); return g;
+}
+
+function chart1(data) {
+  const W=document.getElementById('c1').parentElement.clientWidth-44;
+  const H=280;
+  const g=prep(document.getElementById('c1'),W,H);
+  const mx=data[data.length-1].p;
+  const L=68,R2=18,T=16,B=36;
+  const cW=W-L-R2, cH=H-T-B;
+  const xi=i=>L+(i/(Y-1))*cW;
+  const yv=v=>T+cH-(v/mx)*cH;
+
+  // grid
+  g.strokeStyle='#1e1e2e'; g.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const yy=T+(i/4)*cH;
+    g.beginPath();g.moveTo(L,yy);g.lineTo(L+cW,yy);g.stroke();
+    g.fillStyle='#475569';g.font='10px DM Mono,monospace';g.textAlign='right';
+    g.fillText(fmt(mx*(1-i/4)),L-5,yy+4);
+  }
+  g.fillStyle='#475569';g.font='10px DM Mono,monospace';g.textAlign='center';
+  for(let y=5;y<=Y;y+=5) g.fillText('Año '+y,xi(y-1),H-5);
+
+  // contributed
+  g.beginPath();g.moveTo(xi(0),T+cH);
+  data.forEach((d,i)=>g.lineTo(xi(i),yv(d.contrib)));
+  g.lineTo(xi(Y-1),T+cH);g.closePath();
+  g.fillStyle='rgba(56,189,248,0.08)';g.fill();
+  g.beginPath();
+  data.forEach((d,i)=>i===0?g.moveTo(xi(0),yv(d.contrib)):g.lineTo(xi(i),yv(d.contrib)));
+  g.strokeStyle='rgba(56,189,248,0.65)';g.lineWidth=2;g.stroke();
+
+  // portfolio
+  const gr=g.createLinearGradient(0,T,0,T+cH);
+  gr.addColorStop(0,'rgba(249,115,22,0.28)');
+  gr.addColorStop(1,'rgba(249,115,22,0.01)');
+  g.beginPath();g.moveTo(xi(0),T+cH);
+  data.forEach((d,i)=>g.lineTo(xi(i),yv(d.p)));
+  g.lineTo(xi(Y-1),T+cH);g.closePath();
+  g.fillStyle=gr;g.fill();
+  g.beginPath();
+  data.forEach((d,i)=>i===0?g.moveTo(xi(0),yv(d.p)):g.lineTo(xi(i),yv(d.p)));
+  g.strokeStyle='#f97316';g.lineWidth=2.5;g.stroke();
+
+  // threshold dashed
+  let tY=null; for(const d of data) if(d.pct<5&&!tY) tY=d.y;
+  if(tY){
+    g.strokeStyle='rgba(167,139,250,0.4)';g.lineWidth=1;g.setLineDash([4,4]);
+    g.beginPath();g.moveTo(xi(tY-1),T);g.lineTo(xi(tY-1),T+cH);g.stroke();
+    g.setLineDash([]);
+  }
+}
+
+function chart2(data) {
+  const W=document.getElementById('c2').parentElement.clientWidth-44;
+  const H=240;
+  const g=prep(document.getElementById('c2'),W,H);
+  const maxP=data[0].pct;
+  const L=50,R2=18,T=16,B=36;
+  const cW=W-L-R2, cH=H-T-B;
+  const xi=i=>L+(i/(Y-1))*cW;
+  const yp=v=>T+cH-(v/maxP)*cH;
+
+  let tY=null; for(const d of data) if(d.pct<5&&!tY) tY=d.y;
+
+  // zone backgrounds
+  const y5=yp(5), yBot=T+cH;
+  const zG1=g.createLinearGradient(0,T,0,y5);
+  zG1.addColorStop(0,'rgba(56,189,248,0.07)');
+  zG1.addColorStop(1,'rgba(100,116,139,0.02)');
+  g.fillStyle=zG1; g.fillRect(L,T,cW,y5-T);
+  const zG2=g.createLinearGradient(0,y5,0,yBot);
+  zG2.addColorStop(0,'rgba(249,115,22,0.04)');
+  zG2.addColorStop(1,'rgba(249,115,22,0.18)');
+  g.fillStyle=zG2; g.fillRect(L,y5,cW,yBot-y5);
+
+  // grid
+  const ticks=[0,5,10,25,50].filter(t=>t<=maxP);
+  const top=Math.round(maxP); if(!ticks.includes(top)) ticks.unshift(top);
+  ticks.forEach(t=>{
+    const yy=yp(t), is5=t===5;
+    g.strokeStyle=is5?'rgba(167,139,250,0.45)':'#1e1e2e';
+    g.lineWidth=1; g.setLineDash(is5?[5,4]:[]);
+    g.beginPath();g.moveTo(L,yy);g.lineTo(L+cW,yy);g.stroke();
+    g.setLineDash([]);
+    g.fillStyle=is5?'rgba(167,139,250,0.85)':'#475569';
+    g.font=(is5?'bold ':'')+' 10px DM Mono,monospace';
+    g.textAlign='right';
+    g.fillText(t+'%',L-5,yy+4);
+  });
+
+  // zone text
+  g.font='9px DM Mono,monospace'; g.textAlign='right';
+  g.fillStyle='rgba(56,189,248,0.45)'; g.fillText('TÚ CONTROLAS ↑',L+cW-4,T+16);
+  if(y5<yBot-18){g.fillStyle='rgba(249,115,22,0.5)'; g.fillText('↓ EL MERCADO MANDA',L+cW-4,yBot-6);}
+
+  // x labels
+  g.fillStyle='#475569';g.font='10px DM Mono,monospace';g.textAlign='center';
+  for(let y=5;y<=Y;y+=5) g.fillText('Año '+y,xi(y-1),H-5);
+
+  // area
+  const aG=g.createLinearGradient(0,T,0,T+cH);
+  aG.addColorStop(0,'rgba(167,139,250,0.32)');
+  aG.addColorStop(0.5,'rgba(167,139,250,0.1)');
+  aG.addColorStop(1,'rgba(249,115,22,0.04)');
+  g.beginPath();g.moveTo(xi(0),T+cH);
+  data.forEach((d,i)=>g.lineTo(xi(i),yp(d.pct)));
+  g.lineTo(xi(Y-1),T+cH);g.closePath();
+  g.fillStyle=aG;g.fill();
+
+  // line
+  const lG=g.createLinearGradient(xi(0),0,xi(Y-1),0);
+  lG.addColorStop(0,'#38bdf8'); lG.addColorStop(0.38,'#a78bfa'); lG.addColorStop(1,'#f97316');
+  g.beginPath();
+  data.forEach((d,i)=>i===0?g.moveTo(xi(0),yp(d.pct)):g.lineTo(xi(i),yp(d.pct)));
+  g.strokeStyle=lG;g.lineWidth=2.5;g.stroke();
+
+  // dots + labels
+  data.forEach((d,i)=>{
+    if(d.y%5!==0&&d.y!==tY) return;
+    const px=xi(i),py=yp(d.pct),isT=d.y===tY;
+    if(isT){
+      g.strokeStyle='rgba(167,139,250,0.45)';g.lineWidth=1.5;
+      g.beginPath();g.arc(px,py,10,0,Math.PI*2);g.stroke();
+    }
+    g.beginPath();g.arc(px,py,isT?5:3.5,0,Math.PI*2);
+    g.fillStyle=isT?'#a78bfa':'rgba(255,255,255,0.5)';g.fill();
+    g.fillStyle=isT?'rgba(167,139,250,0.95)':'rgba(255,255,255,0.4)';
+    g.font=(isT?'bold ':'')+' 9px DM Mono,monospace';g.textAlign='center';
+    const above=py-14>T+6;
+    g.fillText(d.pct.toFixed(1)+'%',px,above?py-14:py+15);
+  });
+
+  // threshold vertical
+  if(tY){
+    g.strokeStyle='rgba(167,139,250,0.65)';g.lineWidth=1.5;g.setLineDash([5,4]);
+    g.beginPath();g.moveTo(xi(tY-1),T);g.lineTo(xi(tY-1),T+cH);g.stroke();
+    g.setLineDash([]);
+    g.fillStyle='rgba(167,139,250,0.8)';g.font='bold 9px DM Mono,monospace';
+    g.textAlign='center';g.fillText('Año '+tY,xi(tY-1),T+10);
+  }
+}
+
+function update() {
+  M=+document.getElementById('sm').value;
+  Y=+document.getElementById('sy').value;
+  R=+document.getElementById('sr2').value/100;
+  document.getElementById('dm').textContent=M;
+  document.getElementById('dy').textContent=Y;
+  document.getElementById('dr').textContent=(R*100).toFixed(1);
+
+  const data=sim();
+  const last=data[data.length-1];
+  document.getElementById('vt').textContent=fmt(last.p);
+  document.getElementById('st').textContent=`a los ${Y} años`;
+  document.getElementById('vc').textContent=fmt(last.contrib);
+  document.getElementById('vr').textContent=last.pct.toFixed(1)+'%';
+  document.getElementById('sr').textContent=`${fmt(last.annual)} al año vs ${fmt(last.p)}`;
+
+  let tY=null; for(const d of data) if(d.pct<5&&!tY) tY=d.y;
+  if(tY){
+    const mult=(last.p*0.10/last.annual).toFixed(1);
+    document.getElementById('ann').innerHTML=`A partir del año <span class="pill">${tY}</span>, tu aportación anual de <strong>${fmt(last.annual)}</strong> representa menos del <strong>5%</strong> de la cartera. Una variación del <strong>±10% del S&amp;P 500</strong> mueve tu patrimonio lo mismo que <strong>${mult} años</strong> de aportaciones. La curva inferior lo muestra sin rodeos: tu influencia se desvanece — el índice ya dirige solo.`;
+  }
+
+  chart1(data);
+  chart2(data);
+}
+
+document.getElementById('sm').addEventListener('input',update);
+document.getElementById('sy').addEventListener('input',update);
+document.getElementById('sr2').addEventListener('input',update);
+window.addEventListener('resize',update);
+update();
+</script>
+</body>
+</html>
