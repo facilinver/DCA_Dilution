@@ -48,10 +48,10 @@ h1 span { color:var(--sp); }
 .insights { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr)); gap:12px; margin-bottom:24px; }
 .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; position:relative; overflow:hidden; }
 .card::after { content:''; position:absolute; top:0; left:0; width:100%; height:2px; }
-.card.or::after{background:var(--sp);} .card.bl::after{background:var(--contrib);} .card.pu::after{background:var(--accent);}
+.card.or::after{background:var(--sp);} .card.bl::after{background:var(--contrib);} .card.pu::after{background:var(--accent);} .card.gr::after{background:#34d399;}
 .cl { font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-family:'DM Mono',monospace; margin-bottom:5px; }
 .cv { font-family:'Bebas Neue',sans-serif; font-size:30px; }
-.card.or .cv{color:var(--sp);} .card.bl .cv{color:var(--contrib);} .card.pu .cv{color:var(--accent);}
+.card.or .cv{color:var(--sp);} .card.bl .cv{color:var(--contrib);} .card.pu .cv{color:var(--accent);} .card.gr .cv{color:#34d399;}
 .cs { font-size:11px; color:var(--muted); margin-top:3px; line-height:1.4; }
 
 .controls { display:flex; gap:24px; flex-wrap:wrap; margin-bottom:24px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 22px; }
@@ -86,12 +86,15 @@ canvas { display:block; width:100%; }
 
   <div class="insights">
     <div class="card or"><div class="cl">Valor total acumulado</div><div class="cv" id="vt">—</div><div class="cs" id="st"></div></div>
-    <div class="card bl"><div class="cl">Total aportado</div><div class="cv" id="vc">—</div><div class="cs">en efectivo</div></div>
-    <div class="card pu"><div class="cl">Aportación anual / cartera</div><div class="cv" id="vr">—</div><div class="cs" id="sr"></div></div>
+    <div class="card bl"><div class="cl">Total aportado</div><div class="cv" id="vc">—</div><div class="cs" id="sc"></div></div>
+    <div class="card gr"><div class="cl">DCA en año final</div><div class="cv" id="vd">—</div><div class="cs" id="sd"></div></div>
+    <div class="card pu"><div class="cl">Aportación anual / cartera</div><div class="cv" id="vr">—</div><div class="cs" id="sr">—</div></div>
   </div>
 
   <div class="controls">
-    <div class="cg"><span class="clabel">Aportación mensual</span><span class="cval"><span id="dm">500</span> €</span><input type="range" id="sm" min="100" max="2000" step="50" value="500"></div>
+    <div class="cg"><span class="clabel">Aportación mensual inicial</span><span class="cval"><span id="dm">500</span> €</span><input type="range" id="sm" min="100" max="2000" step="50" value="500"></div>
+    <div class="cg"><span class="clabel">Incremento DCA anual</span><span class="cval"><span id="dg">0</span> %</span><input type="range" id="sg" min="0" max="10" step="0.5" value="0"></div>
+    <div class="cg"><span class="clabel">Inversión inicial (lump sum)</span><span class="cval"><span id="dl">0</span> €</span><input type="range" id="sl2" min="0" max="100000" step="1000" value="0"></div>
     <div class="cg"><span class="clabel">Años de inversión</span><span class="cval"><span id="dy">30</span> años</span><input type="range" id="sy" min="10" max="40" step="1" value="30"></div>
     <div class="cg"><span class="clabel">Rentabilidad anual</span><span class="cval"><span id="dr">10</span> %</span><input type="range" id="sr2" min="4" max="14" step="0.5" value="10"></div>
   </div>
@@ -99,7 +102,7 @@ canvas { display:block; width:100%; }
   <div class="cw">
     <div class="ct">Valor de la cartera vs. capital aportado</div>
     <canvas id="c1" height="280"></canvas>
-    <div class="legend">
+    <div class="legend" id="leg1">
       <div class="li"><div class="ld" style="background:var(--sp)"></div>Valor total cartera</div>
       <div class="li"><div class="ld" style="background:var(--contrib)"></div>Capital aportado acumulado</div>
     </div>
@@ -109,7 +112,7 @@ canvas { display:block; width:100%; }
     <div class="ct">Aportación anual como <span style="color:var(--accent)">% del valor total</span> de la cartera</div>
     <div class="cd">Cuanto más cae esta curva, menos importa lo que aportas — el mercado toma el mando</div>
     <canvas id="c2" height="240"></canvas>
-    <div class="legend">
+    <div class="legend" id="leg2">
       <div class="li"><div class="ld" style="background:var(--accent)"></div>% aportación anual / cartera</div>
       <div class="li"><div class="ld" style="background:rgba(167,139,250,0.25);border:1px dashed rgba(167,139,250,0.6)"></div>Umbral 5% · punto de dilución</div>
     </div>
@@ -119,13 +122,20 @@ canvas { display:block; width:100%; }
 </div>
 
 <script>
-let M=500, Y=30, R=0.10;
+let M=500, Y=30, R=0.10, G=0, LS=0;
 
 function sim() {
-  const r=R/12; let p=0; const out=[];
+  const r=R/12;
+  let p=LS; // start with lump sum already invested
+  const out=[];
+  let mDCA=M; // monthly DCA for current year
+  let totalContrib=LS;
   for (let y=1;y<=Y;y++) {
-    for (let m=0;m<12;m++) p=(p+M)*(1+r);
-    out.push({y,p,contrib:M*12*y,annual:M*12,pct:(M*12)/p*100});
+    if(y>1) mDCA=M*Math.pow(1+G/100,y-1); // grow DCA each year
+    const annualCash=mDCA*12;
+    for(let m=0;m<12;m++) p=(p+mDCA)*(1+r);
+    totalContrib+=annualCash;
+    out.push({y, p, contrib:totalContrib, annual:annualCash, mDCA, pct:annualCash/p*100});
   }
   return out;
 }
@@ -144,9 +154,10 @@ function prep(c,W,H) {
 }
 
 function chart1(data) {
-  const W=document.getElementById('c1').parentElement.clientWidth-44;
+  const cv=document.getElementById('c1');
+  const W=cv.parentElement.clientWidth-44;
   const H=280;
-  const g=prep(document.getElementById('c1'),W,H);
+  const g=prep(cv,W,H);
   const mx=data[data.length-1].p;
   const L=68,R2=18,T=16,B=36;
   const cW=W-L-R2, cH=H-T-B;
@@ -163,6 +174,18 @@ function chart1(data) {
   }
   g.fillStyle='#475569';g.font='10px DM Mono,monospace';g.textAlign='center';
   for(let y=5;y<=Y;y+=5) g.fillText('Año '+y,xi(y-1),H-5);
+
+  // lump sum baseline — horizontal dashed line showing initial value growth
+  if(LS>0){
+    // draw lump-sum-only curve (for reference)
+    g.beginPath();
+    for(let i=0;i<data.length;i++){
+      const lsVal=LS*Math.pow(1+R,data[i].y);
+      if(i===0) g.moveTo(xi(0),yv(lsVal)); else g.lineTo(xi(i),yv(lsVal));
+    }
+    g.strokeStyle='rgba(52,211,153,0.35)';g.lineWidth=1.5;g.setLineDash([3,4]);g.stroke();
+    g.setLineDash([]);
+  }
 
   // contributed
   g.beginPath();g.moveTo(xi(0),T+cH);
@@ -192,17 +215,26 @@ function chart1(data) {
     g.beginPath();g.moveTo(xi(tY-1),T);g.lineTo(xi(tY-1),T+cH);g.stroke();
     g.setLineDash([]);
   }
+
+  // Update legend dynamically
+  const leg=document.getElementById('leg1');
+  leg.innerHTML=`
+    <div class="li"><div class="ld" style="background:var(--sp)"></div>Valor total cartera</div>
+    <div class="li"><div class="ld" style="background:var(--contrib)"></div>Capital aportado acumulado</div>
+    ${LS>0?'<div class="li"><div class="ld" style="background:rgba(52,211,153,0.5);border:1px dashed rgba(52,211,153,0.7)"></div>Lump sum solo (referencia)</div>':''}
+  `;
 }
 
 function chart2(data) {
-  const W=document.getElementById('c2').parentElement.clientWidth-44;
+  const cv=document.getElementById('c2');
+  const W=cv.parentElement.clientWidth-44;
   const H=240;
-  const g=prep(document.getElementById('c2'),W,H);
+  const g=prep(cv,W,H);
   const maxP=data[0].pct;
   const L=50,R2=18,T=16,B=36;
   const cW=W-L-R2, cH=H-T-B;
   const xi=i=>L+(i/(Y-1))*cW;
-  const yp=v=>T+cH-(v/maxP)*cH;
+  const yp=v=>T+cH-(Math.min(v,maxP)/maxP)*cH;
 
   let tY=null; for(const d of data) if(d.pct<5&&!tY) tY=d.y;
 
@@ -211,7 +243,7 @@ function chart2(data) {
   const zG1=g.createLinearGradient(0,T,0,y5);
   zG1.addColorStop(0,'rgba(56,189,248,0.07)');
   zG1.addColorStop(1,'rgba(100,116,139,0.02)');
-  g.fillStyle=zG1; g.fillRect(L,T,cW,y5-T);
+  g.fillStyle=zG1; g.fillRect(L,T,cW,Math.max(0,y5-T));
   const zG2=g.createLinearGradient(0,y5,0,yBot);
   zG2.addColorStop(0,'rgba(249,115,22,0.04)');
   zG2.addColorStop(1,'rgba(249,115,22,0.18)');
@@ -251,12 +283,27 @@ function chart2(data) {
   g.lineTo(xi(Y-1),T+cH);g.closePath();
   g.fillStyle=aG;g.fill();
 
-  // line
+  // line — gradient blue→purple→orange
   const lG=g.createLinearGradient(xi(0),0,xi(Y-1),0);
   lG.addColorStop(0,'#38bdf8'); lG.addColorStop(0.38,'#a78bfa'); lG.addColorStop(1,'#f97316');
   g.beginPath();
   data.forEach((d,i)=>i===0?g.moveTo(xi(0),yp(d.pct)):g.lineTo(xi(i),yp(d.pct)));
   g.strokeStyle=lG;g.lineWidth=2.5;g.stroke();
+
+  // If DCA grows, draw a secondary faint curve showing "flat DCA" for comparison
+  if(G>0){
+    // simulate flat DCA for comparison
+    const flatR=R/12; let fp=LS;
+    const flatPcts=[];
+    for(let y=1;y<=Y;y++){
+      for(let m=0;m<12;m++) fp=(fp+M)*(1+flatR);
+      flatPcts.push(M*12/fp*100);
+    }
+    g.beginPath();
+    flatPcts.forEach((v,i)=>i===0?g.moveTo(xi(0),yp(v)):g.lineTo(xi(i),yp(v)));
+    g.strokeStyle='rgba(56,189,248,0.25)';g.lineWidth=1.5;g.setLineDash([4,4]);g.stroke();
+    g.setLineDash([]);
+  }
 
   // dots + labels
   data.forEach((d,i)=>{
@@ -282,37 +329,61 @@ function chart2(data) {
     g.fillStyle='rgba(167,139,250,0.8)';g.font='bold 9px DM Mono,monospace';
     g.textAlign='center';g.fillText('Año '+tY,xi(tY-1),T+10);
   }
+
+  // Update legend
+  const leg=document.getElementById('leg2');
+  leg.innerHTML=`
+    <div class="li"><div class="ld" style="background:var(--accent)"></div>% aportación anual / cartera</div>
+    <div class="li"><div class="ld" style="background:rgba(167,139,250,0.25);border:1px dashed rgba(167,139,250,0.6)"></div>Umbral 5% · punto de dilución</div>
+    ${G>0?'<div class="li"><div class="ld" style="background:rgba(56,189,248,0.3);border:1px dashed rgba(56,189,248,0.5)"></div>DCA fijo (referencia sin incremento)</div>':''}
+  `;
 }
 
 function update() {
-  M=+document.getElementById('sm').value;
-  Y=+document.getElementById('sy').value;
-  R=+document.getElementById('sr2').value/100;
-  document.getElementById('dm').textContent=M;
-  document.getElementById('dy').textContent=Y;
-  document.getElementById('dr').textContent=(R*100).toFixed(1);
+  M  = +document.getElementById('sm').value;
+  G  = +document.getElementById('sg').value;
+  LS = +document.getElementById('sl2').value;
+  Y  = +document.getElementById('sy').value;
+  R  = +document.getElementById('sr2').value/100;
 
-  const data=sim();
-  const last=data[data.length-1];
-  document.getElementById('vt').textContent=fmt(last.p);
-  document.getElementById('st').textContent=`a los ${Y} años`;
-  document.getElementById('vc').textContent=fmt(last.contrib);
-  document.getElementById('vr').textContent=last.pct.toFixed(1)+'%';
-  document.getElementById('sr').textContent=`${fmt(last.annual)} al año vs ${fmt(last.p)}`;
+  document.getElementById('dm').textContent = fmt(M).replace(' €','');
+  document.getElementById('dg').textContent = G.toFixed(1);
+  document.getElementById('dl').textContent = fmt(LS).replace(' €','');
+  document.getElementById('dy').textContent = Y;
+  document.getElementById('dr').textContent = (R*100).toFixed(1);
+
+  // fix display for M (always show raw number for small values)
+  document.getElementById('dm').textContent = M >= 1000 ? fmt(M) : M;
+  document.getElementById('dl').textContent = LS === 0 ? '0' : fmt(LS);
+
+  const data = sim();
+  const last = data[data.length-1];
+
+  document.getElementById('vt').textContent = fmt(last.p);
+  document.getElementById('st').textContent = `a los ${Y} años`;
+  document.getElementById('vc').textContent = fmt(last.contrib);
+  document.getElementById('sc').textContent = LS > 0 ? `incluye ${fmt(LS)} lump sum` : 'en efectivo';
+  document.getElementById('vd').textContent = fmt(last.mDCA)+'/mes';
+  document.getElementById('sd').textContent = G > 0 ? `+${G.toFixed(1)}% anual desde ${M}€` : 'DCA fijo sin incremento';
+  document.getElementById('vr').textContent = last.pct.toFixed(1)+'%';
+  document.getElementById('sr').textContent = `${fmt(last.annual)} al año vs ${fmt(last.p)}`;
 
   let tY=null; for(const d of data) if(d.pct<5&&!tY) tY=d.y;
+  const ann=document.getElementById('ann');
   if(tY){
     const mult=(last.p*0.10/last.annual).toFixed(1);
-    document.getElementById('ann').innerHTML=`A partir del año <span class="pill">${tY}</span>, tu aportación anual de <strong>${fmt(last.annual)}</strong> representa menos del <strong>5%</strong> de la cartera. Una variación del <strong>±10% del S&amp;P 500</strong> mueve tu patrimonio lo mismo que <strong>${mult} años</strong> de aportaciones. La curva inferior lo muestra sin rodeos: tu influencia se desvanece — el índice ya dirige solo.`;
+    const lsNote = LS>0 ? ` El lump sum inicial de <strong>${fmt(LS)}</strong> adelantó la dilución desde el primer día.` : '';
+    const gNote  = G>0  ? ` Incrementar el DCA un <strong>${G.toFixed(1)}% anual</strong> retrasa ligeramente ese punto, pero no lo evita.` : '';
+    ann.innerHTML=`A partir del año <span class="pill">${tY}</span>, tu aportación anual de <strong>${fmt(last.annual)}</strong> representa menos del <strong>5%</strong> de la cartera. Una variación del <strong>±10% del S&amp;P 500</strong> mueve tu patrimonio lo mismo que <strong>${mult} años</strong> de aportaciones.${lsNote}${gNote}`;
+  } else {
+    ann.innerHTML=`Con los parámetros actuales, la aportación anual aún representa <strong>${last.pct.toFixed(1)}%</strong> de la cartera al final del período — todavía no has alcanzado el punto de dilución del 5%.`;
   }
 
   chart1(data);
   chart2(data);
 }
 
-document.getElementById('sm').addEventListener('input',update);
-document.getElementById('sy').addEventListener('input',update);
-document.getElementById('sr2').addEventListener('input',update);
+['sm','sg','sl2','sy','sr2'].forEach(id=>document.getElementById(id).addEventListener('input',update));
 window.addEventListener('resize',update);
 update();
 </script>
